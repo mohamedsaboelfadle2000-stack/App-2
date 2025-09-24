@@ -1,0 +1,152 @@
+import os
+import zipfile
+
+project_name = "CasioCalculator"
+os.makedirs(project_name, exist_ok=True)
+
+files = {
+    "CasioCalculator.pro": """QT       += core gui
+
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+TARGET = CasioCalculator
+TEMPLATE = app
+
+SOURCES += main.cpp \\
+           calculator.cpp
+
+HEADERS += calculator.h
+
+# إضافة مكتبة muParser
+INCLUDEPATH += /usr/include/muParser
+LIBS += -lmuparser
+""",
+    "main.cpp": """#include <QApplication>
+#include "calculator.h"
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+
+    Calculator calc;
+    calc.show();
+
+    return app.exec();
+}
+""",
+    "calculator.h": """#ifndef CALCULATOR_H
+#define CALCULATOR_H
+
+#include <QWidget>
+#include <QLineEdit>
+#include <QGridLayout>
+#include <QPushButton>
+#include <QString>
+
+class Calculator : public QWidget {
+    Q_OBJECT
+
+public:
+    Calculator(QWidget *parent = nullptr);
+
+private slots:
+    void onButtonClicked();
+
+private:
+    QLineEdit *display;
+    QString currentExpression;
+
+    void createButtons(QGridLayout *layout);
+    double evaluateExpression(const QString &expr);
+};
+
+#endif // CALCULATOR_H
+""",
+    "calculator.cpp": """#include "calculator.h"
+#include <QVBoxLayout>
+#include <QDebug>
+#include <cmath>
+#include "muParser.h"
+
+Calculator::Calculator(QWidget *parent) : QWidget(parent) {
+    setWindowTitle("Casio Calculator");
+    resize(400, 500);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+
+    display = new QLineEdit(this);
+    display->setReadOnly(true);
+    display->setAlignment(Qt::AlignRight);
+    display->setFixedHeight(50);
+    mainLayout->addWidget(display);
+
+    QGridLayout *buttonLayout = new QGridLayout();
+    createButtons(buttonLayout);
+    mainLayout->addLayout(buttonLayout);
+}
+
+void Calculator::createButtons(QGridLayout *layout) {
+    QString buttons[6][4] = {
+        {"7", "8", "9", "/"},
+        {"4", "5", "6", "*"},
+        {"1", "2", "3", "-"},
+        {"0", ".", "=", "+"},
+        {"C", "sqrt", "^", "log"},
+        {"sin", "cos", "tan", "pi"}
+    };
+
+    for (int row = 0; row < 6; ++row) {
+        for (int col = 0; col < 4; ++col) {
+            QPushButton *btn = new QPushButton(buttons[row][col], this);
+            btn->setFixedSize(80, 60);
+            layout->addWidget(btn, row, col);
+            connect(btn, &QPushButton::clicked, this, &Calculator::onButtonClicked);
+        }
+    }
+}
+
+void Calculator::onButtonClicked() {
+    QPushButton *button = qobject_cast<QPushButton*>(sender());
+    QString text = button->text();
+
+    if (text == "C") {
+        currentExpression.clear();
+        display->clear();
+    } else if (text == "=") {
+        double result = evaluateExpression(currentExpression);
+        display->setText(QString::number(result));
+        currentExpression = QString::number(result);
+    } else if (text == "pi") {
+        currentExpression += "3.141592653589793";
+        display->setText(currentExpression);
+    } else {
+        currentExpression += text;
+        display->setText(currentExpression);
+    }
+}
+
+double Calculator::evaluateExpression(const QString &expr) {
+    try {
+        mu::Parser parser;
+        parser.DefineConst("pi", 3.141592653589793);
+        parser.SetExpr(expr.toStdString());
+        return parser.Eval();
+    } catch (mu::Parser::exception_type &e) {
+        qDebug() << "خطأ في المعادلة:" << e.GetMsg().c_str();
+        return 0;
+    }
+}
+"""
+}
+
+# كتابة الملفات
+for filename, content in files.items():
+    with open(os.path.join(project_name, filename), "w", encoding="utf-8") as f:
+        f.write(content)
+
+# إنشاء ملف zip
+zip_filename = f"{project_name}.zip"
+with zipfile.ZipFile(zip_filename, 'w') as zipf:
+    for filename in files.keys():
+        zipf.write(os.path.join(project_name, filename), arcname=os.path.join(project_name, filename))
+
+print(f"تم إنشاء الملف: {zip_filename}")
